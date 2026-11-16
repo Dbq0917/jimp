@@ -1,6 +1,8 @@
 import { RGBAColor, JimpClass, Bitmap, RGBColor } from "@jimp/types";
 import tinyColor from "tinycolor2";
 
+export * from "./decode-limits.js";
+
 export function clone<I extends JimpClass>(image: I): I {
   const newBitmap = {
     width: image.bitmap.width,

@@ -685,6 +685,9 @@ importers:
       '@jimp/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@jimp/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       pngjs:
         specifier: ^7.0.0
         version: 7.0.0

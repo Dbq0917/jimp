@@ -1,5 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "JIMP_DECODE_MAX_WIDTH",
+    "JIMP_DECODE_MAX_HEIGHT",
+    "JIMP_DECODE_MAX_PIXELS",
+    "JIMP_DECODE_MAX_MEMORY"
+  ],
   "tasks": {
     "build": {
       "outputs": ["dist/**"],

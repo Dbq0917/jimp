@@ -1,7 +1,15 @@
 import * as BMP from "bmp-ts";
 
-import { scan } from "@jimp/utils";
+import {
+  DecodeLimitOptions,
+  ImageCorruptError,
+  estimateDecodeBytes,
+  observeDecodeMemory,
+  scan,
+} from "@jimp/utils";
 import { Bitmap, Format } from "@jimp/types";
+
+import { guardBmpDecode, readBmpHeader } from "./decode-guard.js";
 
 export type { BmpColor } from "bmp-ts";
 export { BmpCompression } from "bmp-ts";
@@ -32,6 +40,16 @@ export type EncodeOptions = Pretty<
 
 export interface DecodeBmpOptions {
   toRGBA?: boolean;
+  /**
+   * Resource limits enforced before any pixel buffer is allocated. Defaults
+   * to 80M pixels / 1.6GB and can be overridden globally via the
+   * `JIMP_DECODE_MAX_*` environment variables or per call here.
+   */
+  maxWidth?: number;
+  maxHeight?: number;
+  maxPixels?: number;
+  maxMemory?: number;
+  onPeakMemory?: DecodeLimitOptions["onPeakMemory"];
 }
 
 function encode(image: Bitmap, options: EncodeOptions = {}) {
@@ -51,14 +69,49 @@ function encode(image: Bitmap, options: EncodeOptions = {}) {
       image.data[index + 1] = blue;
       image.data[index + 2] = green;
       image.data[index + 3] = red;
-    }
+    },
   );
 
   return BMP.encode({ ...image, ...options }).data;
 }
 
 function decode(data: Buffer, options?: DecodeBmpOptions) {
-  const result = BMP.decode(data, options);
+  // Header parsing is allocation free, so it is safe to run ahead of the
+  // memory observer to populate the peak report. Corrupt headers report a
+  // zero estimate and surface as ImageCorruptError from inside the guard.
+  let estimatedBytes = 0;
+
+  try {
+    const { width, height } = readBmpHeader(data);
+    estimatedBytes = estimateDecodeBytes(width, height, 0);
+  } catch {
+    // reported through guardBmpDecode below
+  }
+
+  const result = observeDecodeMemory(
+    "image/bmp",
+    estimatedBytes,
+    options,
+    () => {
+      guardBmpDecode(data, options);
+
+      try {
+        return BMP.decode(data, options);
+      } catch (error) {
+        if (error instanceof ImageCorruptError) {
+          throw error;
+        }
+
+        // bmp-ts signals truncated/malformed payloads with plain Error or
+        // RangeError; normalise them so callers can tell corruption apart
+        // from an ImageLimitError policy rejection.
+        throw new ImageCorruptError(
+          `BMP file is malformed and cannot be decoded: ${error instanceof Error ? error.message : String(error)}`,
+          error,
+        );
+      }
+    },
+  );
 
   scan(
     { bitmap: result },
@@ -76,7 +129,7 @@ function decode(data: Buffer, options?: DecodeBmpOptions) {
       result.data[index + 1] = green;
       result.data[index + 2] = blue;
       result.data[index + 3] = 0xff;
-    }
+    },
   );
 
   return result as Bitmap;

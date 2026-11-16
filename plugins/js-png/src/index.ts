@@ -1,6 +1,16 @@
 import { PNG, PNGOptions as PNGJSOptions } from "pngjs";
+import {
+  DecodeLimitOptions,
+  ImageCorruptError,
+  observeDecodeMemory,
+} from "@jimp/utils";
 import { Format } from "@jimp/types";
 import { PNGFilterType, PNGColorType } from "./constants.js";
+import {
+  estimatePngDecodeBytes,
+  guardPngDecode,
+  readPngHeader,
+} from "./decode-guard.js";
 
 export type { PNGOptions as PNGJSOptions } from "pngjs";
 export type PNGOptions = Omit<
@@ -15,6 +25,17 @@ export type PNGOptions = Omit<
 export interface DecodePngOptions {
   checkCRC?: boolean | undefined;
   skipRescale?: boolean | undefined;
+  /**
+   * Resource limits enforced against the IHDR dimensions before any pixel
+   * buffer is allocated. Defaults to 80M pixels / 1.6GB and can be
+   * overridden globally via the `JIMP_DECODE_MAX_*` environment variables
+   * or per call here.
+   */
+  maxWidth?: number;
+  maxHeight?: number;
+  maxPixels?: number;
+  maxMemory?: number;
+  onPeakMemory?: DecodeLimitOptions["onPeakMemory"];
 }
 
 export * from "./constants.js";
@@ -32,7 +53,7 @@ export default function png() {
         colorType,
         inputHasAlpha = true,
         ...options
-      }: PNGOptions = {}
+      }: PNGOptions = {},
     ) => {
       const png = new PNG({
         width: bitmap.width,
@@ -56,7 +77,38 @@ export default function png() {
       });
     },
     decode: (data, options?: DecodePngOptions) => {
-      const result = PNG.sync.read(data, options);
+      let estimatedBytes = 0;
+
+      try {
+        estimatedBytes = estimatePngDecodeBytes(readPngHeader(data));
+      } catch {
+        // reported through guardPngDecode below
+      }
+
+      const result = observeDecodeMemory(
+        "image/png",
+        estimatedBytes,
+        options,
+        () => {
+          guardPngDecode(data, options);
+
+          try {
+            return PNG.sync.read(data, options);
+          } catch (error) {
+            if (error instanceof ImageCorruptError) {
+              throw error;
+            }
+
+            // pngjs signals truncated/invalid streams with plain Error;
+            // normalise them so callers can tell corruption apart from an
+            // ImageLimitError policy rejection.
+            throw new ImageCorruptError(
+              `PNG file is malformed and cannot be decoded: ${error instanceof Error ? error.message : String(error)}`,
+              error,
+            );
+          }
+        },
+      );
 
       return {
         data: result.data,
