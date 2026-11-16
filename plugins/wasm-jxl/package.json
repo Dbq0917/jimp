@@ -1,0 +1,70 @@
+{
+  "name": "@jimp/wasm-jxl",
+  "version": "1.6.0",
+  "repository": "jimp-dev/jimp",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "build": "tshy",
+    "dev": "tshy --watch",
+    "clean": "rm -rf node_modules .tshy .tshy-build dist .turbo",
+    "test": "vitest --exclude '**/*.browser.test.ts'"
+  },
+  "author": "Andrew Lisowski <lisowski54@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@jimp/config-eslint": "workspace:*",
+    "@jimp/config-typescript": "workspace:*",
+    "@jimp/core": "workspace:*",
+    "@jimp/js-jpeg": "workspace:*",
+    "@jimp/plugin-resize": "workspace:*",
+    "@jimp/test-utils": "workspace:*",
+    "@jimp/types": "workspace:*",
+    "@types/node": "^18.19.48",
+    "eslint": "^9.9.1",
+    "rapier-jxl": "^8.3.5",
+    "tshy": "^3.0.2",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "peerDependencies": {
+    "rapier-jxl": "^8.3.5"
+  },
+  "peerDependenciesMeta": {
+    "rapier-jxl": {
+      "optional": true
+    }
+  },
+  "tshy": {
+    "exclude": [
+      "**/*.test.ts"
+    ],
+    "dialects": [
+      "esm"
+    ],
+    "exports": {
+      "./package.json": "./package.json",
+      ".": "./src/index.ts"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    }
+  },
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "module": "./dist/esm/index.js"
+}
